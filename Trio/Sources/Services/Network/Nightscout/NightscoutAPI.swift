@@ -16,6 +16,7 @@ class NightscoutAPI {
         static let treatmentsPath = "/api/v1/treatments.json"
         static let statusPath = "/api/v1/devicestatus.json"
         static let profilePath = "/api/v1/profile.json"
+        static let pixelAlarmPath = "/api/v1/pixelalarm"
         static let retryCount = 1
         static let timeout: TimeInterval = 60
     }
@@ -551,6 +552,100 @@ extension NightscoutAPI {
         } catch {
             warning(.nightscout, "Could not fetch Nightscout Profile! Error: \(error)")
             throw error
+        }
+    }
+}
+
+struct PixelAlarmStatus: Codable, Equatable {
+    enum Mode: String, Codable, Equatable {
+        case off
+        case armed
+        case triggered
+    }
+
+    struct Config: Codable, Equatable {
+        let subject: String
+        let value: Int
+        let triggerDurationSeconds: Int
+        let triggerTimeoutSeconds: Int
+        let safetyThreshold: Int
+    }
+
+    let enabled: Bool
+    let mode: Mode
+    let armedAt: Date?
+    let triggeredAt: Date?
+    let triggeredBy: String?
+    let firstServedAt: Date?
+    let expiresAt: Date?
+    let config: Config
+}
+
+enum PixelAlarmError: LocalizedError {
+    case unauthorized
+    case unavailable
+    case badResponse
+
+    var errorDescription: String? {
+        switch self {
+        case .unauthorized:
+            return String(localized: "Nightscout rejected the API secret. Check your Nightscout credentials.")
+        case .unavailable:
+            return String(localized: "The Nightscout server does not have the SugarPixel alarm feature enabled.")
+        case .badResponse:
+            return String(localized: "Unexpected response from the Nightscout server.")
+        }
+    }
+}
+
+extension NightscoutAPI {
+    func fetchPixelAlarmStatus() async throws -> PixelAlarmStatus {
+        try await pixelAlarmRequest(endpoint: "status", httpMethod: "GET")
+    }
+
+    func armPixelAlarm() async throws -> PixelAlarmStatus {
+        try await pixelAlarmRequest(endpoint: "arm", httpMethod: "POST")
+    }
+
+    func disarmPixelAlarm() async throws -> PixelAlarmStatus {
+        try await pixelAlarmRequest(endpoint: "disarm", httpMethod: "POST")
+    }
+
+    private func pixelAlarmRequest(endpoint: String, httpMethod: String) async throws -> PixelAlarmStatus {
+        var components = URLComponents()
+        components.scheme = url.scheme
+        components.host = url.host
+        components.port = url.port
+        components.path = Config.pixelAlarmPath + "/" + endpoint
+
+        guard let requestURL = components.url else {
+            throw URLError(.badURL)
+        }
+
+        var request = URLRequest(url: requestURL)
+        request.timeoutInterval = Config.timeout
+        request.httpMethod = httpMethod
+
+        if let secret = secret {
+            request.addValue(secret.sha1(), forHTTPHeaderField: "api-secret")
+        }
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw PixelAlarmError.badResponse
+        }
+
+        switch httpResponse.statusCode {
+        case 200 ... 299:
+            return try JSONCoding.decoder.decode(PixelAlarmStatus.self, from: data)
+        case 401:
+            throw PixelAlarmError.unauthorized
+        case 404:
+            throw PixelAlarmError.unavailable
+        default:
+            warning(.nightscout, "PixelAlarm \(endpoint) failed. HTTP status code: \(httpResponse.statusCode)")
+            throw PixelAlarmError.badResponse
         }
     }
 }

@@ -421,6 +421,18 @@ enum SettingItems {
             ],
             path: ["Services", "Nightscout", "Fetch and Remote Control"]
         ),
+        SettingItem(
+            title: "Nightscout SugarPixel Alarm",
+            view: .nighscoutConfig,
+            searchContents: [
+                "SugarPixel Alarm",
+                "Remote Alarm"
+            ],
+            scrollTargetLabels: [
+                "Remote Alarm": "SugarPixel Alarm"
+            ],
+            path: ["Services", "Nightscout", "SugarPixel Alarm"]
+        ),
         SettingItem(title: "Tidepool", view: .serviceSettings, path: ["Services"]),
         SettingItem(title: "Apple Health", view: .healthkit, path: ["Services"])
     ]

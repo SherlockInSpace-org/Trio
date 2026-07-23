@@ -52,6 +52,23 @@ extension NightscoutConfig {
                             })
                             NavigationLink("Upload", destination: NightscoutUploadView(state: state))
                             NavigationLink("Fetch", destination: NightscoutFetchView(state: state))
+                            if state.pixelAlarmAvailable {
+                                NavigationLink(destination: NightscoutPixelAlarmView(state: state), label: {
+                                    HStack {
+                                        Text("SugarPixel Alarm")
+                                        switch state.pixelAlarmStatus?.mode {
+                                        case .armed:
+                                            Image(systemName: "bell.fill").foregroundColor(.orange)
+                                        case .triggered:
+                                            Image(systemName: "bell.and.waves.left.and.right")
+                                                .foregroundColor(Color.loopRed)
+                                        case .off,
+                                             nil:
+                                            Image(systemName: "bell.slash")
+                                        }
+                                    }
+                                })
+                            }
                         }
                     ).listRowBackground(Color.chart)
 
@@ -127,7 +144,10 @@ extension NightscoutConfig {
             .navigationBarTitle("Nightscout")
             .navigationBarTitleDisplayMode(.automatic)
             .scrollContentBackground(.hidden).background(appState.trioBackgroundColor(for: colorScheme))
-            .onAppear(perform: configureView)
+            .onAppear {
+                configureView()
+                Task { await state.refreshPixelAlarm() }
+            }
         }
     }
 }
